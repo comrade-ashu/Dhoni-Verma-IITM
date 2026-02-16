@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard | Virat Verma IITM</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .admin-container {
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            margin-top: 60px;
+            /* Navbar height */
+        }
+
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .admin-section {
+            background: var(--card-bg);
+            padding: 1.5rem;
+            border-radius: 1rem;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .admin-section h2 {
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            background: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        .btn-add {
+            background: var(--primary-color);
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+        }
+
+        .btn-delete {
+            background: #ef4444;
+            color: white;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.8rem;
+            cursor: pointer;
+            border: none;
+        }
+
+        .item-list {
+            margin-top: 1rem;
+        }
+
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+            align-items: center;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="container nav-container">
+            <a href="index.html" class="logo">Virat Verma <span class="highlight">Admin</span></a>
+            <ul class="nav-links">
+                <li><a href="index.html">Back to Site</a></li>
+                <li><a href="#" id="logout-btn">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <div class="admin-container" id="admin-content" style="display:none;">
+        <div class="admin-header">
+            <h1>Dashboard</h1>
+            <p>Manage your website content</p>
+        </div>
+
+        <!-- Add Resource -->
+        <div class="admin-section">
+            <h2>Add New Resource</h2>
+            <form id="resource-form">
+                <div class="form-grid">
+                    <input type="text" id="res-title" placeholder="Title (e.g. Statistics)" required>
+                    <input type="text" id="res-desc" placeholder="Description" required>
+                    <input type="text" id="res-link" placeholder="Link URL" required>
+                    <input type="text" id="res-icon" placeholder="Icon (emoji or text)" value="📄">
+                </div>
+                <button type="submit" class="btn-add">Add Resource</button>
+            </form>
+            <div class="item-list" id="resource-list">
+                <!-- Loaded via JS -->
+            </div>
+        </div>
+
+        <!-- Add Video -->
+        <div class="admin-section">
+            <h2>Add New Video</h2>
+            <form id="video-form">
+                <div class="form-grid">
+                    <input type="text" id="vid-title" placeholder="Video Title" required>
+                    <input type="text" id="vid-url" placeholder="YouTube URL" required>
+                    <input type="text" id="vid-thumb" placeholder="Thumbnail URL (Optional)">
+                </div>
+                <button type="submit" class="btn-add">Add Video</button>
+            </form>
+            <div class="item-list" id="video-list">
+                <!-- Loaded via JS -->
+            </div>
+        </div>
+    </div>
+
+    <div id="loading" style="text-align:center; padding-top: 5rem;">Verifying Admin Access...</div>
+
+    <script type="module">
+        import { initAuthObserver, logoutUser } from './js/auth.js';
+        import { isAdmin, addResource, addVideo, getResources, getVideos, deleteResource, deleteVideo } from './js/db.js';
+
+        const content = document.getElementById('admin-content');
+        const loading = document.getElementById('loading');
+
+        // Check Admin
+        initAuthObserver(async (user) => {
+            if (user) {
+                const admin = await isAdmin(user);
+                if (admin) {
+                    loading.style.display = 'none';
+                    content.style.display = 'block';
+                    loadAll();
+                } else {
+                    alert("Access Denied: You are not an admin.");
+                    window.location.href = 'index.html';
+                }
+            } else {
+                window.location.href = 'login.html';
+            }
+        });
+
+        document.getElementById('logout-btn').addEventListener('click', (e) => {
+            e.preventDefault();
+            logoutUser();
+        });
+
+        // Resource Form
+        document.getElementById('resource-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                title: document.getElementById('res-title').value,
+                description: document.getElementById('res-desc').value,
+                link: document.getElementById('res-link').value,
+                icon: document.getElementById('res-icon').value
+            };
+            const result = await addResource(data);
+            if (result.success) {
+                alert("Resource Added!");
+                e.target.reset();
+                loadAll();
+            } else {
+                alert("Failed to add resource: " + result.error.message);
+                console.error(result.error);
+            }
+        });
+
+        // Video Form
+        document.getElementById('video-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = document.getElementById('vid-url').value;
+            // Extract Video ID if possible, or just use URL
+            const data = {
+                title: document.getElementById('vid-title').value,
+                videoUrl: url,
+                thumbnail: document.getElementById('vid-thumb').value || `https://img.youtube.com/vi/${getVideoId(url)}/maxresdefault.jpg`
+            };
+            const result = await addVideo(data);
+            if (result.success) {
+                alert("Video Added!");
+                e.target.reset();
+                loadAll();
+            } else {
+                alert("Failed to add video: " + result.error.message);
+                console.error(result.error);
+            }
+        });
+
+        function getVideoId(url) {
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+            const match = url.match(regExp);
+            return (match && match[2].length === 11) ? match[2] : null;
+        }
+
+        async function loadAll() {
+            // Resources
+            const resList = document.getElementById('resource-list');
+            const resources = await getResources();
+            resList.innerHTML = resources.map(r => `
+                <div class="list-item">
+                    <span>${r.title}</span>
+                    <button class="btn-delete" onclick="window.deleteRes('${r.id}')">Delete</button>
+                </div>
+            `).join('');
+
+            // Videos
+            const vidList = document.getElementById('video-list');
+            const videos = await getVideos();
+            vidList.innerHTML = videos.map(v => `
+                <div class="list-item">
+                    <span>${v.title}</span>
+                    <button class="btn-delete" onclick="window.deleteVid('${v.id}')">Delete</button>
+                </div>
+            `).join('');
+        }
+
+        // Attach global delete functions
+        window.deleteRes = async (id) => {
+            if (confirm("Are you sure?")) {
+                await deleteResource(id);
+                loadAll();
+            }
+        };
+        window.deleteVid = async (id) => {
+            if (confirm("Are you sure?")) {
+                await deleteVideo(id);
+                loadAll();
+            }
+        }
+    </script>
+</body>
+
+</html>
